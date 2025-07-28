@@ -1,25 +1,17 @@
-```swift
+```Swift
 import Alamofire
 
-class NetworkManager {
+class MyNetworkingClass {
 
-    var baseURL: String {
-        return "https://api.example.com/"
+    var URLString: String {
+        return "https://example.com"
     }
 
-    func fetchSomeData(endpoint: String) {
-        Alamofire.request(self.baseURL + endpoint).responseJSON { response in
-            guard response.result.isSuccess else {
-                print("Error while fetching remote rooms: \(String(describing: response.result.error))")
-                return
+    func makeRequest() {
+        Alamofire.request(URLString).responseJSON { response in
+            if let json = response.result.value {
+                print("JSON: \(json)")
             }
-            
-            guard let value = response.result.value as? [String: Any] else {
-                print("Malformed data received from fetchAllRooms service")
-                return
-            }
-            
-            print("Data received: \(value)")
         }
     }
 }

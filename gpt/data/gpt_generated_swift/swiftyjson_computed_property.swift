@@ -1,33 +1,33 @@
 ```swift
 import SwiftyJSON
 
-struct User {
-    var json: JSON
+struct Product {
+    let json: JSON
 
-    var name: String {
-        get {
-            return self.json["name"].stringValue
-        }
-    }
-    
-    var age: Int {
-        get {
-            return self.json["age"].intValue
-        }
-    }
-    
     init(json: JSON) {
         self.json = json
     }
+    
+    var name: String {
+        return json["name"].stringValue
+    }
+
+    var price: Double {
+        return json["price"].doubleValue
+    }
 }
 
-let jsonString = "{\"name\":\"John\", \"age\":30}"
+let jsonString = """
+{
+"name": "iPhone X",
+"price": 999.99
+}
+"""
 
-if let data = jsonString.data(using: .utf8) {
-    let json = JSON(data)
-    let user = User(json: json)
-    
-    print(user.name) // "John"
-    print(user.age) // 30
+let jsonData = Data(jsonString.utf8)
+if let json = try? JSON(data: jsonData) {
+    let product = Product(json: json)
+    print(product.name)  // "iPhone X"
+    print(product.price) // 999.99
 }
 ```

@@ -1,46 +1,43 @@
 ```swift
 import SwiftyJSON
 
-protocol JSONInitializable {
+protocol Serializable {
     init?(json: JSON)
 }
 
-extension JSONInitializable where Self: NSObject {
-
-    init?(jsonString: String) {
-        if let data = jsonString.data(using: .utf8) {
-            let json = JSON(data)
-            self.init(json: json)
-        } else {
+extension Serializable {
+    static func decode(_ json: JSON) -> Self? {
+        if json.isNull {
             return nil
+        } else {
+            return Self.init(json: json)
         }
     }
 }
 
-class User: NSObject, JSONInitializable {
-    var name: String?
-    var email: String?
+struct User: Serializable {
+    let name: String
+    let email: String
 
-    required init?(json: JSON) {
-        self.name = json["name"].string
-        self.email = json["email"].string
-        super.init()
-
-        if self.name == nil || self.email == nil {
+    init?(json: JSON) {
+        guard let name = json["name"].string, let email = json["email"].string else {
             return nil
         }
+
+        self.name = name
+        self.email = email
     }
 }
 
 let jsonString = """
 {
-    "name" : "John Doe",
-    "email" : "john@doe.com"
+    "name": "John Doe",
+    "email": "john@example.com"
 }
 """
 
-if let user = User(jsonString: jsonString) {
-    print(user.name)   // Output: John Doe
-    print(user.email)  // Output: john@doe.com
+if let dataFromString = jsonString.data(using: .utf8, allowLossyConversion: false), let user = User.decode(JSON(dataFromString)) {
+    print(user.name)
+    print(user.email)
 }
 ```

@@ -3,37 +3,24 @@ import UIKit
 import Kingfisher
 
 protocol ImageLoadable {
-    var imageUrl: URL? { get }
-    var imagePlaceholder: UIImage? { get }
-    var imageView: UIImageView { get }
+    func loadImage(from url: String)
 }
 
-extension ImageLoadable {
-    
-    func loadImage() {
-        imageView.kf.setImage(with: imageUrl, placeholder: imagePlaceholder)
+extension ImageLoadable where Self: UIImageView {
+    func loadImage(from url: String) {
+        let url = URL(string: url)
+        self.kf.setImage(with: url)
     }
 }
 
-class CustomImageCell: UITableViewCell, ImageLoadable {
+class ViewController: UIViewController {
+    @IBOutlet weak var imageView: UIImageView!
     
-    @IBOutlet weak var customImageView: UIImageView!
-    
-    var imageUrl: URL? {
-        return URL(string: "https://example.com/image.jpg")
-    }
-    
-    var imagePlaceholder: UIImage? {
-        return UIImage(named: "placeholder")
-    }
-    
-    var imageView: UIImageView {
-        return customImageView
-    }
-    
-    override func awakeFromNib() {
-        super.awakeFromNib()
-        loadImage()
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        imageView.loadImage(from: "https://example.com/image.jpg")
     }
 }
+
+extension UIImageView: ImageLoadable {}
 ```

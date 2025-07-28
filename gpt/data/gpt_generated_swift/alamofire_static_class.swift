@@ -1,31 +1,29 @@
 ```swift
 import Alamofire
 
-class NetworkManager {
+struct Response: Decodable {
+    let result: String
+}
+
+final class NetworkManager {
     static let shared = NetworkManager()
     
     private init() {}
+    
+    func request(url: String, method: HTTPMethod = .get, parameters: Parameters? = nil, encoding: ParameterEncoding = URLEncoding.default, headers: HTTPHeaders? = nil, completion: @escaping (Response?, Error?) -> Void) {
 
-    func getRequest(url: String) {
-
-        Alamofire.request(url).responseJSON { response in 
-            print("Request: \(String(describing: response.request))")
-            print("Response: \(String(describing: response.response))")
-            print("Result: \(response.result)")
+        AF.request(url, method: method, parameters: parameters, encoding: encoding, headers: headers).responseDecodable { (response: DataResponse<Response, AFError>) in
             
-            if let json = response.result.value {
-                print("JSON: \(json)")
-            } else {
-                print("Data is missing.")
+            switch response.result {
+            case .success(let value):
+                completion(value, nil)
+            case .failure(let error):
+                completion(nil, error)
             }
         }
     }
-
-    static func postRequest(url: String, parameters: Parameters) {
-        Alamofire.request(url, method: .post, parameters: parameters, encoding: JSONEncoding.default)
-            .responseJSON { response in
-                print(response)
-        }
-    }
 }
+
 ```
+
+In the above code Alamofire is being used to perform a network request. The response of the request is assumed to be decodable into an instance of the 'Response' struct. GetLastError() is a method of the 'NetworkManager' singleton class that allows for the result of this network request to be returned. The network request can be customized with different http methods, parameters, encoding types and headers.

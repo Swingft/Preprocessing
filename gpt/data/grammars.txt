@@ -1,3 +1,1 @@
 static class
-computed property
-protocol extension

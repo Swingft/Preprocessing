@@ -1,27 +1,28 @@
-```
+```swift
 import UIKit
 import Kingfisher
 
-struct ImageModel {
-    let url: String
+class ImageLoader {
+    
+    static let shared = ImageLoader()
+    
+    private init() {}
+    
+    func loadImage(url: String, imageView: UIImageView) {
+        let url = URL(string: url)
+        imageView.kf.setImage(with: url)
+    }
 }
 
 class ViewController: UIViewController {
-    @IBOutlet weak var imageView: UIImageView!
-    
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        
-        let imageModel = ImageModel(url: "https://example.com/image.jpg")
-        ImageLoader.load(from: imageModel.url, into: imageView)
-    }
-}
 
-class ImageLoader {
-    
-    static func load(from urlString: String, into imageView: UIImageView) {
-        guard let url = URL(string: urlString) else { return }
-        imageView.kf.setImage(with: url)
-    }
+   @IBOutlet weak var imageView: UIImageView!
+   
+   override func viewDidLoad() {
+       super.viewDidLoad()
+       
+       let imageURL = "https://example.com/image.jpg"
+       ImageLoader.shared.loadImage(url: imageURL, imageView: imageView)
+   }
 }
 ```

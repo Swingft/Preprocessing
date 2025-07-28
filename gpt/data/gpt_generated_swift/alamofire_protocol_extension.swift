@@ -1,17 +1,18 @@
 ```swift
 import Alamofire
 
-protocol DataRequestProtocol {
-    func requestData(url: String, method: HTTPMethod, parameters: [String: Any]?, headers: [String: String]?)
+protocol ServiceRequester {
+    var baseUrl: String { get }
+    func request(path: String, method: HTTPMethod, parameters: Parameters?)
 }
 
-extension DataRequestProtocol {
-    
-    func requestData(url: String, method: HTTPMethod = .get, parameters: [String: Any]? = nil, headers: [String: String]? = nil) {
-        Alamofire.request(url, method: method, parameters: parameters, headers: headers).responseJSON { (response) in
+extension ServiceRequester {
+    func request(path: String, method: HTTPMethod = .get, parameters: Parameters? = nil) {
+        let url = "\(baseUrl)\(path)"
+        Alamofire.request(url, method: method, parameters: parameters).validate().responseJSON { response in
             switch response.result {
             case .success:
-                print("Request Successful!")
+                print("Validation Successful")
             case .failure(let error):
                 print(error)
             }
@@ -19,8 +20,11 @@ extension DataRequestProtocol {
     }
 }
 
-class NetworkRequest: DataRequestProtocol { }
+struct UserService: ServiceRequester {
+    let baseUrl = "https://example.com/"
 
-let networkRequest = NetworkRequest()
-networkRequest.requestData(url: "http://api.example.com")
+    func getUserDetails(userId: String) {
+        request(path: "users/\(userId)")
+    }
+}
 ```
