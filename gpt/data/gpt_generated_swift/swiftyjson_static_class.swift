@@ -1,28 +1,22 @@
 ```swift
 import SwiftyJSON
 
-final class JSONUtil {
+struct JSONHandler {
     
-    static let sharedInstance = JSONUtil()
-    
-    private init() {}
-    
-    static func parse(jsonString: String) -> JSON {
-        if let dataFromString = jsonString.data(using: .utf8, allowLossyConversion: false) {
-            return JSON(data: dataFromString)
-        } else {
-            return JSON.null
-        }
+    static func parseJSON(_ data: Data) {
+        let json = try! JSON(data: data)
+        let name = json["name"].stringValue
+        print(name)
     }
     
-    static func getStringValue(json: JSON, key: String) -> String {
-        let result = json[key].stringValue
-        return result
-    }
-    
-    static func getIntValue(json: JSON, key: String) -> Int {
-        let result = json[key].intValue
-        return result
+    static func createJSON() -> Data {
+        let json = JSON(["name": "John Doe"])
+        let data = try! json.rawData()
+        return data
     }
 }
+
+// Calling the static methods
+let jsonData = JSONHandler.createJSON()
+JSONHandler.parseJSON(jsonData)
 ```

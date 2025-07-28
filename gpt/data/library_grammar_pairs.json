@@ -2,37 +2,5 @@
   {
     "library": "SwiftyJSON",
     "grammar": "static class"
-  },
-  {
-    "library": "SwiftyJSON",
-    "grammar": "computed property"
-  },
-  {
-    "library": "SwiftyJSON",
-    "grammar": "protocol extension"
-  },
-  {
-    "library": "Alamofire",
-    "grammar": "static class"
-  },
-  {
-    "library": "Alamofire",
-    "grammar": "computed property"
-  },
-  {
-    "library": "Alamofire",
-    "grammar": "protocol extension"
-  },
-  {
-    "library": "Kingfisher",
-    "grammar": "static class"
-  },
-  {
-    "library": "Kingfisher",
-    "grammar": "computed property"
-  },
-  {
-    "library": "Kingfisher",
-    "grammar": "protocol extension"
   }
 ]
