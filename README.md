@@ -1,7 +1,7 @@
 # Preprocessing
 
 This project provides preprocessing tools for preparing data used in fine-tuning open large language models (LLMs).
-It is based on Python and Conda virtual environments, and uses a .env file for flexible configuration.
+It is based on Python and Conda virtual environments, and uses a .env file for flexible configuration
 
 ---
 
