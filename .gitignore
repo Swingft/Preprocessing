@@ -1,10 +1,7 @@
-.DS_Store
 .env
+.DS_Store
+.idea
 ./data/gpt_generated_swift/
 ./data/library_grammar_pairs.json
 credentials.json
 token.json
-
-
-
-
