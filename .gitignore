@@ -1,6 +1,6 @@
 .env
 .DS_Store
-.idea
+.idea/
 ./data/gpt_generated_swift/
 ./data/library_grammar_pairs.json
 credentials.json
