@@ -5,3 +5,8 @@
 ./data/library_grammar_pairs.json
 credentials.json
 token.json
+./swift_files/
+swift_spm_networking_repos.csv
+__pycache__/
+*.pyc
+analysis_results/

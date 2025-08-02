@@ -3,9 +3,8 @@ import json
 from gpt_handler import GPTHandler
 from claude_handler import ClaudeHandler
 
-if __name__ == "__main__":
+def main():
     json_path = "data/library_grammar_pairs.json"
-
     if not os.path.exists(json_path):
         lib_path = "data/libraries.txt"
         grammar_path = "data/grammars.txt"
@@ -38,3 +37,7 @@ if __name__ == "__main__":
             ClaudeHandler.save_swift_code(claude_reply, test_library, swift_grammar)
         except Exception as e:
             print(f"❌ Claude error for {test_library} + {swift_grammar}: {e}")
+
+if __name__ == "__main__":
+    main()
+
