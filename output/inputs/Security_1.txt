@@ -1,0 +1,295 @@
+
+You are an expert security code auditor.
+Your task is to identify all sensitive identifiers in the provided Swift code.
+Analyze both the source code and its corresponding AST symbol information.
+
+**Swift Source Code:**
+```swift
+import Security
+import LocalAuthentication
+
+final class SecureTokenManager {
+    static let shared = SecureTokenManager()
+    private let keychainService = "com.myapp.auth"
+    private let tokenKey = "userAuthToken"
+    private let context = LAContext()
+    
+    private init() {}
+    
+    func saveToken(_ token: String) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: tokenKey,
+            kSecValueData as String: token.data(using: .utf8)!,
+            kSecAttrAccessControl as String: try generateAccessControl(),
+            kSecUseAuthenticationUI as String: kSecUseAuthenticationUIAllow
+        ]
+        
+        let status = SecItemAdd(query as CFDictionary, nil)
+        
+        if status == errSecDuplicateItem {
+            try updateToken(token)
+        } else if status != errSecSuccess {
+            throw KeychainError.saveError(status: status)
+        }
+    }
+    
+    func retrieveToken() throws -> String {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: tokenKey,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecReturnData as String: true,
+            kSecUseAuthenticationUI as String: kSecUseAuthenticationUIAllow
+        ]
+        
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let token = String(data: data, encoding: .utf8) else {
+            throw KeychainError.retrieveError(status: status)
+        }
+        
+        return token
+    }
+    
+    private func updateToken(_ token: String) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: tokenKey
+        ]
+        
+        let attributes: [String: Any] = [
+            kSecValueData as String: token.data(using: .utf8)!
+        ]
+        
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        
+        if status != errSecSuccess {
+            throw KeychainError.updateError(status: status)
+        }
+    }
+    
+    private func generateAccessControl() throws -> SecAccessControl {
+        guard let accessControl = SecAccessControlCreateWithFlags(
+            nil,
+            kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly,
+            .biometryAny,
+            nil
+        ) else {
+            throw KeychainError.accessControlError
+        }
+        return accessControl
+    }
+}
+
+enum KeychainError: Error {
+    case saveError(status: OSStatus)
+    case retrieveError(status: OSStatus)
+    case updateError(status: OSStatus)
+    case accessControlError
+}
+````
+AST Symbol Information (JSON):
+````[
+  {
+    "symbolKind" : "class",
+    "symbolName" : "SecureTokenManager"
+  },
+  {
+    "symbolKind" : "variable",
+    "symbolName" : "shared"
+  },
+  {
+    "symbolName" : "keychainService",
+    "symbolKind" : "variable"
+  },
+  {
+    "symbolKind" : "variable",
+    "symbolName" : "tokenKey"
+  },
+  {
+    "symbolName" : "context",
+    "symbolKind" : "variable"
+  },
+  {
+    "symbolKind" : "method",
+    "symbolName" : "saveToken((_ token: String) throws)",
+    "calls_out" : [
+      "SecItemAdd",
+      "data",
+      "generateAccessControl",
+      "saveError",
+      "updateToken"
+    ],
+    "references" : [
+      "KeychainError",
+      "SecItemAdd",
+      "data",
+      "errSecDuplicateItem",
+      "errSecSuccess",
+      "generateAccessControl",
+      "kSecAttrAccessControl",
+      "kSecAttrAccount",
+      "kSecAttrService",
+      "kSecClass",
+      "kSecClassGenericPassword",
+      "kSecUseAuthenticationUI",
+      "kSecUseAuthenticationUIAllow",
+      "kSecValueData",
+      "keychainService",
+      "query",
+      "saveError",
+      "status",
+      "token",
+      "tokenKey",
+      "updateToken",
+      "utf8"
+    ],
+    "typeSignature" : "(_ token: String) throws"
+  },
+  {
+    "symbolName" : "query",
+    "typeSignature" : "[String: Any]",
+    "symbolKind" : "variable"
+  },
+  {
+    "symbolName" : "status",
+    "symbolKind" : "variable"
+  },
+  {
+    "calls_out" : [
+      "SecItemCopyMatching",
+      "String",
+      "retrieveError"
+    ],
+    "typeSignature" : "() throws -> String",
+    "symbolName" : "retrieveToken(() throws -> String)",
+    "references" : [
+      "KeychainError",
+      "SecItemCopyMatching",
+      "String",
+      "data",
+      "errSecSuccess",
+      "kSecAttrAccount",
+      "kSecAttrService",
+      "kSecClass",
+      "kSecClassGenericPassword",
+      "kSecMatchLimit",
+      "kSecMatchLimitOne",
+      "kSecReturnData",
+      "kSecUseAuthenticationUI",
+      "kSecUseAuthenticationUIAllow",
+      "keychainService",
+      "query",
+      "result",
+      "retrieveError",
+      "status",
+      "token",
+      "tokenKey",
+      "utf8"
+    ],
+    "symbolKind" : "method"
+  },
+  {
+    "symbolName" : "query",
+    "symbolKind" : "variable",
+    "typeSignature" : "[String: Any]"
+  },
+  {
+    "symbolKind" : "variable",
+    "typeSignature" : "AnyObject?",
+    "symbolName" : "result"
+  },
+  {
+    "symbolName" : "status",
+    "symbolKind" : "variable"
+  },
+  {
+    "calls_out" : [
+      "SecItemUpdate",
+      "data",
+      "updateError"
+    ],
+    "typeSignature" : "(_ token: String) throws",
+    "symbolKind" : "method",
+    "references" : [
+      "KeychainError",
+      "SecItemUpdate",
+      "attributes",
+      "data",
+      "errSecSuccess",
+      "kSecAttrAccount",
+      "kSecAttrService",
+      "kSecClass",
+      "kSecClassGenericPassword",
+      "kSecValueData",
+      "keychainService",
+      "query",
+      "status",
+      "token",
+      "tokenKey",
+      "updateError",
+      "utf8"
+    ],
+    "symbolName" : "updateToken((_ token: String) throws)"
+  },
+  {
+    "symbolKind" : "variable",
+    "typeSignature" : "[String: Any]",
+    "symbolName" : "query"
+  },
+  {
+    "symbolName" : "attributes",
+    "symbolKind" : "variable",
+    "typeSignature" : "[String: Any]"
+  },
+  {
+    "symbolName" : "status",
+    "symbolKind" : "variable"
+  },
+  {
+    "references" : [
+      "KeychainError",
+      "SecAccessControlCreateWithFlags",
+      "accessControl",
+      "accessControlError",
+      "biometryAny",
+      "kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly"
+    ],
+    "symbolKind" : "method",
+    "typeSignature" : "() throws -> SecAccessControl",
+    "symbolName" : "generateAccessControl(() throws -> SecAccessControl)",
+    "calls_out" : [
+      "SecAccessControlCreateWithFlags"
+    ]
+  }
+]
+````
+
+Based on your analysis, provide a JSON list of strings containing only the simple base name of each sensitive identifier.
+
+RULES for identifier names:
+
+Provide ONLY the function, method, or variable name itself.
+
+Do NOT include parameters, argument labels, or return types (e.g., (password:) -> Bool).
+
+Do NOT include the parent class or struct name (e.g., MyKeychainManager.).
+
+Examples of the required format:
+
+For MyKeychainManager.save(password:), you must only include "save".
+
+For let secretToken, you must only include "secretToken".
+
+For AESGCMEncryption.decrypt(_:), you must only include "decrypt".
+
+A correct final JSON list looks like this: ["save", "secretToken", "decrypt"]
+
+Your response must be ONLY the JSON list, following these rules exactly.

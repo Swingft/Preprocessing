@@ -1,0 +1,33 @@
+{
+  "Security": [
+    "A class that securely saves a user's JWT authentication token to the Keychain after a successful login, using biometric protection (Face ID/Touch ID) for access.",
+    "A utility struct that performs AES-256 encryption and decryption on a Data object using a given symmetric key from CryptoKit.",
+    "A function that generates a cryptographically secure random salt and uses it to hash a user's password with a key derivation function like PBKDF2.",
+    "A network layer extension that implements certificate pinning for all outgoing URLSession requests to a specific critical domain to prevent man-in-the-middle attacks."
+  ],
+  "Privacy": [
+    "A manager class that requests access to the user's photo library using PHPhotoLibrary, allows the user to pick an image, and prepares it for upload.",
+    "A service that accesses the user's address book (contacts) using the Contacts framework to find friends who are also registered on the app.",
+    "A HealthKit manager that requests authorization to read the user's step count and heart rate, then fetches and displays the data from the last 24 hours.",
+    "A class that uses AVAudioRecorder to record audio from the microphone, saves it to a local file in the app's documents directory, and handles recording permissions."
+  ],
+  "Financial": [
+    "A payment handler class that processes a credit card transaction using the Stripe iOS SDK, creating a payment token from user-entered card details.",
+    "A view model for a checkout screen that includes client-side validation logic for a credit card number, its expiration date, and the CVV code.",
+    "A function that securely stores a user's bank account IBAN and SWIFT code in an encrypted local database like Realm or Core Data with encryption enabled."
+  ],
+  "DeviceID": [
+    "A function that collects various device-specific information like the device model name (e.g., 'iPhone16,1'), OS version, and screen resolution for analytics and device fingerprinting.",
+    "A wrapper class for the AdSupport and AppTrackingTransparency frameworks that requests user permission to access the IDFA and retrieves it if granted."
+  ],
+  "Networking": [
+    "A network service class with a method that sends a user's credentials (email and password) in the body of an HTTPS POST request during a login process.",
+    "A file uploader that sends a user's private document as a multipart/form-data request, including an authentication token in the HTTP headers.",
+    "A WebSocket manager that connects to a secure server and transmits real-time user location coordinate updates received from CoreLocation."
+  ],
+  "DataAccess": [
+    "A Core Data manager that saves sensitive user-generated notes into a persistent store that is configured with the NSPersistentStoreEn eryptionOption.",
+    "A settings service that writes a user's private API key to a property list (plist) file stored within the app's sandboxed documents directory.",
+    "A function that retrieves and caches sensitive medical record data from a remote JSON API endpoint, storing it temporarily in an in-memory cache."
+  ]
+}

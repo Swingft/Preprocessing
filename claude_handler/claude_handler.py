@@ -176,20 +176,4 @@ class ClaudeHandler:
             f.write(code)
         print(f"📄 Saved locally: {filepath}")
 
-        ClaudeHandler.upload_to_drive(filepath, filename)
-
-    @staticmethod
-    def load_list(filepath):
-        with open(filepath, "r", encoding="utf-8") as f:
-            return [line.strip() for line in f if line.strip()]
-
-    @staticmethod
-    def generate_library_grammar_pairs(lib_path, grammar_path, out_path):
-        libraries = ClaudeHandler.load_list(lib_path)
-        grammars = ClaudeHandler.load_list(grammar_path)
-        pairs = [{"library": lib, "grammar": grammar} for lib in libraries for grammar in grammars]
-        os.makedirs(os.path.dirname(out_path), exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(pairs, f, indent=2)
-        print(f"✅ Generated {len(pairs)} pairs → {out_path}")
-        return pairs
+        # ClaudeHandler.upload_to_drive(filepath, filename)

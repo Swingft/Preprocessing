@@ -1,0 +1,190 @@
+
+You are an expert security code auditor.
+Your task is to identify all sensitive identifiers in the provided Swift code.
+Analyze both the source code and its corresponding AST symbol information.
+
+**Swift Source Code:**
+```swift
+import Foundation
+
+extension URLSession: URLSessionDelegate {
+    static let pinnedSession: URLSession = {
+        let configuration = URLConfiguration.default
+        let delegate = PinnedCertificateDelegate()
+        return URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
+    }()
+}
+
+final class PinnedCertificateDelegate: NSObject, URLSessionDelegate {
+    private let pinnedCertificateData: Data = {
+        let certificatePath = Bundle.main.path(forResource: "certificate", ofType: "cer")!
+        return try! Data(contentsOf: URL(fileURLWithPath: certificatePath))
+    }()
+    
+    private let trustedDomain = "api.securepayments.example.com"
+    
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        guard let serverTrust = challenge.protectionSpace.serverTrust,
+              let certificate = SecTrustGetCertificateAtIndex(serverTrust, 0),
+              challenge.protectionSpace.host == trustedDomain else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+        
+        let serverCertificateData = SecCertificateCopyData(certificate) as Data
+        
+        if serverCertificateData == pinnedCertificateData {
+            let credential = URLCredential(trust: serverTrust)
+            completionHandler(.useCredential, credential)
+        } else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+        }
+    }
+}
+
+extension URLRequest {
+    static func secureRequest(url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.timeoutInterval = 30
+        return request
+    }
+}
+
+extension URLSession {
+    func securePinnedDataTask(with request: URLRequest, completionHandler: @escaping (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask {
+        return URLSession.pinnedSession.dataTask(with: request, completionHandler: completionHandler)
+    }
+}
+````
+AST Symbol Information (JSON):
+````[
+  {
+    "symbolKind" : "variable",
+    "typeSignature" : "URLSession",
+    "symbolName" : "pinnedSession"
+  },
+  {
+    "symbolName" : "configuration",
+    "symbolKind" : "variable"
+  },
+  {
+    "symbolName" : "delegate",
+    "symbolKind" : "variable"
+  },
+  {
+    "symbolName" : "PinnedCertificateDelegate",
+    "symbolKind" : "class",
+    "conforms" : [
+      "NSObject",
+      "URLSessionDelegate"
+    ]
+  },
+  {
+    "symbolKind" : "variable",
+    "typeSignature" : "Data",
+    "symbolName" : "pinnedCertificateData"
+  },
+  {
+    "symbolName" : "certificatePath",
+    "symbolKind" : "variable"
+  },
+  {
+    "symbolName" : "trustedDomain",
+    "symbolKind" : "variable"
+  },
+  {
+    "symbolName" : "urlSession((_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void))",
+    "symbolKind" : "method",
+    "typeSignature" : "(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)",
+    "calls_out" : [
+      "SecCertificateCopyData",
+      "SecTrustGetCertificateAtIndex",
+      "URLCredential",
+      "completionHandler"
+    ],
+    "references" : [
+      "SecCertificateCopyData",
+      "SecTrustGetCertificateAtIndex",
+      "URLCredential",
+      "cancelAuthenticationChallenge",
+      "certificate",
+      "challenge",
+      "completionHandler",
+      "credential",
+      "host",
+      "pinnedCertificateData",
+      "protectionSpace",
+      "serverCertificateData",
+      "serverTrust",
+      "trustedDomain",
+      "useCredential"
+    ]
+  },
+  {
+    "symbolName" : "serverCertificateData",
+    "symbolKind" : "variable"
+  },
+  {
+    "symbolKind" : "variable",
+    "symbolName" : "credential"
+  },
+  {
+    "symbolName" : "secureRequest((url: URL) -> URLRequest)",
+    "references" : [
+      "URLRequest",
+      "cachePolicy",
+      "reloadIgnoringLocalAndRemoteCacheData",
+      "request",
+      "timeoutInterval",
+      "url"
+    ],
+    "typeSignature" : "(url: URL) -> URLRequest",
+    "calls_out" : [
+      "URLRequest"
+    ],
+    "symbolKind" : "method"
+  },
+  {
+    "symbolName" : "request",
+    "symbolKind" : "variable"
+  },
+  {
+    "symbolKind" : "method",
+    "symbolName" : "securePinnedDataTask((with request: URLRequest, completionHandler: @escaping (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask)",
+    "references" : [
+      "URLSession",
+      "completionHandler",
+      "dataTask",
+      "pinnedSession",
+      "request"
+    ],
+    "calls_out" : [
+      "dataTask"
+    ],
+    "typeSignature" : "(with request: URLRequest, completionHandler: @escaping (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask"
+  }
+]
+````
+
+Based on your analysis, provide a JSON list of strings containing only the simple base name of each sensitive identifier.
+
+RULES for identifier names:
+
+Provide ONLY the function, method, or variable name itself.
+
+Do NOT include parameters, argument labels, or return types (e.g., (password:) -> Bool).
+
+Do NOT include the parent class or struct name (e.g., MyKeychainManager.).
+
+Examples of the required format:
+
+For MyKeychainManager.save(password:), you must only include "save".
+
+For let secretToken, you must only include "secretToken".
+
+For AESGCMEncryption.decrypt(_:), you must only include "decrypt".
+
+A correct final JSON list looks like this: ["save", "secretToken", "decrypt"]
+
+Your response must be ONLY the JSON list, following these rules exactly.
