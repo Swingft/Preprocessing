@@ -1,33 +1,240 @@
 {
-  "Security": [
-    "A class that securely saves a user's JWT authentication token to the Keychain after a successful login, using biometric protection (Face ID/Touch ID) for access.",
-    "A utility struct that performs AES-256 encryption and decryption on a Data object using a given symmetric key from CryptoKit.",
-    "A function that generates a cryptographically secure random salt and uses it to hash a user's password with a key derivation function like PBKDF2.",
-    "A network layer extension that implements certificate pinning for all outgoing URLSession requests to a specific critical domain to prevent man-in-the-middle attacks."
+  "Input_UnsafeDeserialization": [
+    "A Codable struct that decodes a deeply nested JSON object from an untrusted source, which could be crafted to cause excessive memory allocation and CPU usage (JSON bomb attack).",
+    "A function that uses `XMLParser` to parse a user-supplied XML document without disabling external entity resolution, making it vulnerable to XXE (XML External Entity) attacks to read local files.",
+    "A utility that uses the deprecated and insecure `NSKeyedUnarchiver.unarchiveObject(with:)` to deserialize binary data, potentially leading to remote code execution (RCE).",
+    "A class that dynamically creates instances of other classes based on a string name received from a server, allowing instantiation of unintended or sensitive system classes.",
+    "A function that deserializes a binary stream using a custom protocol that is susceptible to type confusion attacks, where an attacker can control the instantiated object's type."
   ],
-  "Privacy": [
-    "A manager class that requests access to the user's photo library using PHPhotoLibrary, allows the user to pick an image, and prepares it for upload.",
-    "A service that accesses the user's address book (contacts) using the Contacts framework to find friends who are also registered on the app.",
-    "A HealthKit manager that requests authorization to read the user's step count and heart rate, then fetches and displays the data from the last 24 hours.",
-    "A class that uses AVAudioRecorder to record audio from the microphone, saves it to a local file in the app's documents directory, and handles recording permissions."
+  "Input_SensitiveDataExposure": [
+    "An AppDelegate method that handles a custom URL scheme like `myapp://auth?token=...` and directly processes the sensitive token parameter.",
+    "A background utility that periodically reads the system pasteboard (`UIPasteboard.general`) to automatically detect and import sensitive data like tracking numbers or verification codes.",
+    "A push notification service extension that receives a notification containing the user's full name and a temporary password in its content payload.",
+    "A function that handles a Universal Link and extracts sensitive user session data directly from the URL's query parameters.",
+    "A custom Intent Handler for Siri Shortcuts that takes a user's password or API key as a parameter in plain text to perform an action."
   ],
-  "Financial": [
-    "A payment handler class that processes a credit card transaction using the Stripe iOS SDK, creating a payment token from user-entered card details.",
-    "A view model for a checkout screen that includes client-side validation logic for a credit card number, its expiration date, and the CVV code.",
-    "A function that securely stores a user's bank account IBAN and SWIFT code in an encrypted local database like Realm or Core Data with encryption enabled."
+  "Input_ValidationBypass": [
+    "A function that constructs a raw SQL query for a local SQLite database by directly concatenating a user-provided search term, making it vulnerable to SQL injection.",
+    "A native C function within the app that copies user input into a fixed-size buffer using `strcpy` without length validation, creating a buffer overflow vulnerability.",
+    "A utility that uses a user-provided string to construct a file path to read from the app's documents directory, making it vulnerable to path traversal attacks (e.g., using `../`).",
+    "A function that uses a poorly written regular expression to validate user input, which is susceptible to a Regular Expression Denial of Service (ReDoS) attack with a crafted string.",
+    "A C function that is exposed to the Swift layer and uses `system()` or `popen()` to execute a command constructed from user input, leading to command injection."
   ],
-  "DeviceID": [
-    "A function that collects various device-specific information like the device model name (e.g., 'iPhone16,1'), OS version, and screen resolution for analytics and device fingerprinting.",
-    "A wrapper class for the AdSupport and AppTrackingTransparency frameworks that requests user permission to access the IDFA and retrieves it if granted."
+  "Input_TamperedEnvironment": [
+    "A function that attempts to detect if the device is jailbroken by checking for the existence of common files like `/private/var/lib/apt` or `/Applications/Cydia.app`, a technique which is easily bypassable.",
+    "A security check that tries to detect if a debugger is attached to the process using the `sysctl` function, which can be hooked and bypassed.",
+    "An implementation of SSL certificate pinning that can be disabled at runtime using a dynamic instrumentation tool like Frida.",
+    "A simple boolean flag `isDeviceSecure` that is the result of a security check, which can be easily flipped at runtime using a debugger or hooking framework.",
+    "A check to determine if the app is running in a simulator by examining environment variables, which can be spoofed."
   ],
-  "Networking": [
-    "A network service class with a method that sends a user's credentials (email and password) in the body of an HTTPS POST request during a login process.",
-    "A file uploader that sends a user's private document as a multipart/form-data request, including an authentication token in the HTTP headers.",
-    "A WebSocket manager that connects to a secure server and transmits real-time user location coordinate updates received from CoreLocation."
+  "Storage_InsecureLocalStorage": [
+    "A user profile class that saves the user's email and password in plain text directly to `UserDefaults`.",
+    "A configuration struct where a third-party service's secret API key and authentication token are hardcoded directly into string variables.",
+    "A data manager that saves sensitive user financial records to an unencrypted SQLite database using the standard `FMDB` library.",
+    "An extension on `FileManager` that saves sensitive user data to a plain text file in the app's publicly accessible 'Documents' directory.",
+    "A function that saves user credentials to a `SharedPreferences` (an Android concept, but illustrative) equivalent on iOS without encryption."
   ],
-  "DataAccess": [
-    "A Core Data manager that saves sensitive user-generated notes into a persistent store that is configured with the NSPersistentStoreEn eryptionOption.",
-    "A settings service that writes a user's private API key to a property list (plist) file stored within the app's sandboxed documents directory.",
-    "A function that retrieves and caches sensitive medical record data from a remote JSON API endpoint, storing it temporarily in an in-memory cache."
+  "Storage_KeychainMisconfiguration": [
+    "A Keychain wrapper that saves a user's password with the `kSecAttrAccessibleAlways` attribute, allowing access even when the device is locked and by other background processes.",
+    "An implementation that uses a shared Keychain access group but does not properly validate the signature of the app accessing the shared data.",
+    "A function that saves a secret to the Keychain but does not set any `SecAccessControl` flags, meaning it can be accessed without user authentication like biometrics or a passcode.",
+    "A utility that stores cryptographic keys in the Keychain but enables them to be backed up to iCloud, potentially exposing them if the user's iCloud account is compromised.",
+    "An app update process that fails to correctly migrate Keychain data to a new access group, potentially leaving old data in an insecure state."
+  ],
+  "Storage_CacheContamination": [
+    "A `WKWebView` instance that downloads and displays sensitive user documents (e.g., bank statements) but does not clear its cache upon user logout.",
+    "A verbose logging utility that writes every network response, including session tokens and user PII, to a rotating plain text file in the app's Caches directory.",
+    "A function that includes the entire Core Data SQLite database file, containing sensitive information, in the device's backup payload sent to iTunes or iCloud.",
+    "An image caching library that stores sensitive user-uploaded documents (like a passport photo) as plain, unencrypted image files in a temporary directory.",
+    "A function that creates a temporary file for sensitive data but fails to delete it after the operation is complete, leaving it on the filesystem."
+  ],
+  "Storage_FileSystemPermission": [
+    "A function that saves a user's private data to a file and sets its POSIX permissions to be world-readable (`0o666`), allowing other apps on a compromised device to access it.",
+    "A utility that writes sensitive, unencrypted data to external storage, which is less secure than the app's sandbox.",
+    "A file operation function vulnerable to a symbolic link attack, where a symlink in a writable directory could point to a protected system file, allowing it to be overwritten.",
+    "A file write operation that is susceptible to a race condition, where a malicious app could alter the file's content or destination between the check and the write.",
+    "A function that attempts to write a file outside of its own sandbox by exploiting a directory traversal vulnerability."
+  ],
+  "Processing_WeakCryptography": [
+    "A user authentication class that hashes a user's password using the outdated and cryptographically broken MD5 algorithm before sending it to a server.",
+    "A utility that performs AES encryption using `CommonCrypto` but is incorrectly configured to use the insecure ECB (Electronic Codebook) mode, which reveals patterns in the data.",
+    "An implementation of a custom encryption scheme that uses a predictable, time-based seed for its random number generator, resulting in weak cryptographic keys.",
+    "A function that uses the PBKDF2 key derivation function but with a very low iteration count (e.g., less than 1000), making it vulnerable to brute-force attacks.",
+    "An implementation that uses a static, hardcoded Initialization Vector (IV) for all AES encryption operations."
+  ],
+  "Processing_BusinessLogicFlaw": [
+    "A view model for an in-app purchase that contains a client-side boolean flag like `isPremiumUser`, which can be easily manipulated at runtime to unlock paid features.",
+    "A function for an e-commerce app that calculates the final price of an item on the client-side, allowing the price to be manipulated before being sent to the server.",
+    "A function that checks user permissions on the client-side before making a network request, which can be easily bypassed by an attacker making the request directly.",
+    "An implementation of a feature that has a race condition, where sending two requests in quick succession (e.g., 'use coupon' and 'confirm purchase') can result in the coupon being applied twice.",
+    "A function that allows a user to bypass a required step in a workflow (e.g., skipping age verification) by directly navigating to a later screen in the app."
+  ],
+  "Processing_SensitiveDataLogging": [
+    "A network response logger that prints the full JSON body of every server response, including access tokens and user details, to the console using `os.Logger` or `print()`.",
+    "A custom error reporting service that captures a screenshot of the app's current view during a crash, which might contain sensitive information, and uploads it.",
+    "A function that logs a user's entered password or credit card number to the console in a debug build for 'testing purposes'.",
+    "A location manager that logs the user's precise GPS coordinates to a local file every second for debugging.",
+    "A crash reporting tool that is configured to include the full memory state of all variables in the report."
+  ],
+  "Processing_MemoryManagement": [
+    "A login screen where the user's password, stored in a `String`, remains in memory long after the authentication process is complete.",
+    "A C function for processing sensitive data that is vulnerable to a use-after-free exploit, where a pointer to deallocated memory is used.",
+    "A function that handles user data in a way that makes it susceptible to extraction from a device's memory dump.",
+    "A function that repeatedly allocates memory based on network input without freeing it, leading to a heap spray attack vector.",
+    "A native code function that deallocates the same memory block twice, leading to a double-free vulnerability that can be exploited for arbitrary code execution."
+  ],
+  "Transit_InsecureNetworking": [
+    "A network manager that makes a login request over a plain HTTP URL instead of HTTPS, exposing user credentials to network eavesdropping.",
+    "A URLSession configuration that globally disables certificate validation by overriding `urlSession(_:didReceive:completionHandler:)` to always trust the challenge.",
+    "An implementation using an outdated library that only supports weak TLS versions like 1.0 or 1.1.",
+    "A network request that is vulnerable to DNS spoofing because it does not validate the server's hostname against the certificate.",
+    "A custom network implementation that is vulnerable to a Man-in-the-Middle (MITM) attack due to improper certificate handling."
+  ],
+  "Transit_SensitiveDataExposure": [
+    "A function that constructs a URL with a sensitive session token as a query parameter (e.g., `api.example.com/data?token=...`), which can be logged by servers and proxies.",
+    "An API request that sends a user's full date of birth and physical address to a third-party analytics SDK for user profiling.",
+    "A function that sends a user's entire address book to a server without explicit, ongoing user consent.",
+    "A file upload utility that sends user data to a cloud storage provider without using client-side encryption.",
+    "A backup service that transmits a user's data to a cloud provider without informing the user that this data is leaving the device."
+  ],
+  "Transit_APISecurityFlaw": [
+    "A class where a third-party service's secret API key is hardcoded directly into a string variable, which can be extracted from the app binary.",
+    "A function that allows a user to fetch their own data via an API call like `/api/users/{userID}/info`, but lacks server-side authorization, allowing an attacker to change the userID and access other users' data (IDOR).",
+    "A function that makes an API call without any rate limiting, allowing for potential abuse and denial of service.",
+    "A network request that bypasses the API gateway's authentication mechanism by using an internal, undocumented endpoint.",
+    "An API request that updates a user profile and is vulnerable to mass assignment, allowing an attacker to overwrite protected fields like `isAdmin`."
+  ],
+  "Transit_DataIntegrityFailure": [
+    "An API client that does not validate the digital signature of a server response, allowing for a man-in-the-middle to tamper with the message.",
+    "A function that sends data to a server but is vulnerable to a replay attack because it lacks a nonce or timestamp.",
+    "A file download utility that does not verify the checksum (e.g., SHA-256 hash) of the downloaded file against the one provided by the server.",
+    "A function that sends critical data but does not include a digital signature to verify the origin of the data.",
+    "A workflow that can be manipulated by altering the timestamps of API requests to bypass business logic."
+  ],
+  "Platform_PermissionAbuse": [
+    "A manager class that requests `Always` location permission from CoreLocation with a vague or misleading purpose string in Info.plist.",
+    "A utility that requests access to the entire photo library (`PHPhotoLibrary`) when it only needs to save a single picture, violating the principle of least privilege.",
+    "An app that requests access to the user's contact list with the sole purpose of sending marketing emails.",
+    "A background task that continues to use location services long after the user has stopped using the relevant feature.",
+    "A function that escalates permissions by first asking for a limited permission and then immediately asking for a broader one."
+  ],
+  "Platform_WebViewVulnerability": [
+    "A `WKScriptMessageHandler` that receives messages from JavaScript and uses the received data directly in a sensitive native function without validating its origin or sanitizing the input.",
+    "A WKWebView that enables local file access (`allowFileAccessFromFileURLs`), which could allow malicious JavaScript to read local files.",
+    "A Swift function exposed to JavaScript that takes a resource name as a parameter and directly constructs a file path to read from the app's bundle, potentially exposing internal resources.",
+    "A webview that is susceptible to Cross-Site Scripting (XSS) which can then be used to call native functions exposed via the JavaScript bridge.",
+    "A webview that allows content spoofing, where a malicious site can appear to be a trusted one, tricking the user into entering credentials."
+  ],
+  "Platform_InsecureIPC": [
+    "A function that registers a custom URL scheme (e.g., `myapp://transfer?data=...`) and processes the data parameter without sanitation, leading to potential injection or command execution.",
+    "An app extension that shares sensitive data with its container app using an insecure `App Group`'s `UserDefaults`, which could be accessed by other malicious apps in the same group.",
+    "A service that is exposed to other apps via a custom XPC mechanism but lacks proper entitlement checks.",
+    "A broadcast receiver (in Android terms, but analogous to `DistributedNotificationCenter`) that accepts intents from any application without validation.",
+    "An app that is vulnerable to URL scheme hijacking because it does not properly validate the source of the incoming URL request."
+  ],
+  "Platform_SystemIntegrationFlaw": [
+    "A function that handles a deep link containing sensitive parameters but does not validate the state of the app, potentially leading to unauthorized screen transitions.",
+    "A custom keyboard extension that could capture user keystrokes from any application.",
+    "An implementation of a background task that downloads sensitive user data but does not properly restrict its execution conditions.",
+    "A notification service that is vulnerable to clickjacking, where a user thinks they are tapping a benign notification but are actually performing a sensitive action.",
+    "An app extension that leaks data to the container app through insecure temporary files."
+  ],
+  "Auth_WeakAuthentication": [
+    "A registration view controller that enforces a weak password policy, allowing short (e.g., 6 characters) or non-complex passwords (e.g., no numbers or symbols).",
+    "A flawed session management implementation where the session token, stored in `UserDefaults`, never expires or is easily predictable.",
+    "An implementation of biometric authentication that has a weak fallback mechanism, such as a simple 4-digit PIN.",
+    "A function that generates an authentication token using a non-random or predictable algorithm.",
+    "An implementation of two-factor authentication that can be bypassed by simply canceling the 2FA prompt."
+  ],
+  "Auth_AuthorizationBypass": [
+    "A function that checks user permissions on the client-side before making a network request, which can be easily bypassed by an attacker making the request directly.",
+    "A function that allows a standard user to access an admin-only feature because a server-side check is missing (vertical privilege escalation).",
+    "A function that allows a user to view another user's private profile by simply changing a user ID in an API request (horizontal privilege escalation).",
+    "An app that allows forced browsing, where a user can access restricted screens by directly manipulating the navigation flow.",
+    "An implementation of attribute-based access control (ABAC) where the attributes can be manipulated by the client."
+  ],
+  "Auth_IdentityVerificationWeak": [
+    "An account recovery process that relies on easily guessable knowledge-based questions, such as 'What is your mother's maiden name?'.",
+    "A system that binds a user's account to a device but uses a simple, non-secure identifier like the device name, which is easily spoofed.",
+    "An identity proofing process that does not sufficiently verify the user's identity before granting access to sensitive features.",
+    "A social engineering vector where an attacker can trick the user into revealing their credentials through a fake login screen.",
+    "A flawed account recovery mechanism that sends a reset link to an unverified email address."
+  ],
+  "Code_ReverseEngineeringVulnerable": [
+    "A release build of an app that was accidentally compiled with debug symbols included, exposing all original function and variable names.",
+    "A class where important internal URLs for staging and production environments are stored as plain strings, making them easy to find with a string analysis tool.",
+    "A native C/C++ library included in the app where a critical encryption key is stored as a global variable, making it easy to find with disassemblers.",
+    "An implementation that lacks control flow obfuscation, making the business logic easy to understand and analyze.",
+    "A resource file (e.g., plist, json) included in the app bundle that contains unprotected sensitive information."
+  ],
+  "Code_AntiTamperingBypass": [
+    "A function that attempts to detect if the app is running in a simulator by checking the device architecture, a check that is trivial to bypass.",
+    "A simple boolean flag `isJailbroken` that is set once at startup, which can be easily flipped at runtime using a debugger or hooking framework.",
+    "An implementation of app integrity checking that can be patched out by an attacker using binary modification tools.",
+    "A function that detects runtime hooking frameworks but whose own detection logic can be hooked and bypassed.",
+    "A system that attempts to prevent static or dynamic analysis, but these protections can be easily evaded."
+  ],
+  "Code_DynamicAnalysisVulnerable": [
+    "A login function that can be easily hooked at runtime using a tool like Frida to bypass the password check and always return 'success'.",
+    "A function that makes security decisions based on the value of a variable that can be located and overwritten in the device's memory at runtime.",
+    "An app that allows API hooking to intercept and log all data before it is encrypted for network transmission.",
+    "A class loading mechanism that can be manipulated to inject malicious code at runtime.",
+    "A heavy use of reflection APIs that allows an attacker to bypass security checks by dynamically invoking private methods."
+  ],
+  "Dependencies_VulnerableLibraries": [
+    "An app that uses a 5-year-old version of the Alamofire networking library which has known, publicly disclosed security vulnerabilities.",
+    "A package manifest (`Package.swift`) that pulls in a third-party dependency from an unverified or personal GitHub repository instead of an official source.",
+    "An app that includes a transitive dependency (a library required by another library) which has a critical security flaw.",
+    "A library that is known to violate user privacy or licenses.",
+    "An app that is vulnerable to a supply chain attack because one of its dependencies has been compromised."
+  ],
+  "Dependencies_ConfigurationErrors": [
+    "A configuration file that contains default credentials for a test database, which was accidentally included in the production build.",
+    "A build script that enables verbose debugging and logging for all build configurations, including the App Store release version.",
+    "A `GoogleService-Info.plist` file included in the main app bundle containing keys for multiple environments, including development and staging.",
+    "A testing endpoint that is left exposed in the production environment.",
+    "Verbose error messages that reveal sensitive system information are enabled in the production build."
+  ],
+  "Dependencies_CloudServiceMisconfiguration": [
+    "A function that uploads user-generated content to a publicly readable AWS S3 bucket due to misconfigured access policies.",
+    "A Firebase Realtime Database that is configured with insecure rules, allowing any user to read or write to any part of the database.",
+    "An AWS Lambda function invoked by the app that is configured with overly permissive IAM roles, such as full access to all S3 buckets.",
+    "A container image used in the backend that has known vulnerabilities.",
+    "An API gateway that has an endpoint left open without authentication."
+  ],
+
+  "NonSensitive_SwiftUI": [
+    "A SwiftUI View that uses a VStack and HStack to arrange several Text labels and an Image for a static user profile card.",
+    "A SwiftUI screen that displays a scrollable list of items using a ScrollView and a ForEach loop from a simple array of strings.",
+    "A declarative SwiftUI view that builds a settings screen with several Toggle switches and Text labels, bound to @State properties.",
+    "A view that uses a TabView to create a basic tab-bar navigation structure with two or three different content views.",
+    "A form built in SwiftUI using Form, TextField, and Button for a non-sensitive purpose like a user feedback form."
+  ],
+  "NonSensitive_UIKit": [
+    "A UIViewController that programmatically creates and adds a UILabel and a UIButton to its view, including setting up Auto Layout constraints.",
+    "A UITableViewController that populates its cells with simple data from an array of strings, handling cell reuse.",
+    "A UICollectionView setup with a basic flow layout to display a grid of images loaded from the app's asset catalog.",
+    "A view controller that implements a UIPageViewController to create a swipeable onboarding or tutorial screen."
+  ],
+  "NonSensitive_DataUtils": [
+    "A Codable struct representing a 'Product' with non-sensitive properties like id (UUID), name (String), price (Double), and description (String).",
+    "An extension on Double that includes a function to format it as a currency string (e.g., '$1,234.56') using a NumberFormatter.",
+    "A utility struct with a static function to format a Date object into a user-readable string like 'MMMM d, yyyy'.",
+    "A simple data model for a blog post with properties for title, content, author, and an array of non-sensitive comment strings."
+  ],
+  "NonSensitive_StateLogic": [
+    "A simple SwiftUI view with an @State property for a counter and two buttons to increment and decrement its value.",
+    "A UIKit view controller that handles a button tap to present another simple, static view controller modally.",
+    "A basic StateObject view model in SwiftUI that holds an array of items and has a function to add a new item to the array."
+  ],
+  "NonSensitive_Networking": [
+    "A function that uses URLSession to fetch a list of public posts from a JSON placeholder API and decodes the result into an array of simple Post structs."
+  ],
+  "NonSensitive_Navigation": [
+    "A SwiftUI NavigationView containing a List where each item is a NavigationLink that pushes to a static detail view.",
+    "A UIKit view controller that performs a segue to another view controller when a button is tapped."
+  ],
+  "NonSensitive_AppLifecycle": [
+    "An AppDelegate or SceneDelegate method that handles basic app lifecycle events like applicationDidBecomeActive or sceneWillEnterForeground."
   ]
 }
