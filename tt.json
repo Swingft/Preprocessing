@@ -1,0 +1,10 @@
+{
+  "variables": [
+    {
+      "symbol_name": "finalAssetPayloads"
+    },
+    {
+      "symbol_name": "operationLog"
+    }
+  ]
+}

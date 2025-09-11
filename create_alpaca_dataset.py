@@ -13,13 +13,15 @@ from prompts import (
     GENERATE_SECURE_SINGLE_CODE_PROMPT, GENERATE_SECURE_COMBINED_CODE_PROMPT,
     GENERATE_MIXED_CONTEXT_CODE_PROMPT, GENERATE_SECURE_MIXED_CONTEXT_CODE_PROMPT
 )
-from claude_handler.claude_handler import ClaudeHandler
+from claude_handler.claude_handler import ClaudeHandler # 코드 생성용
+from gemini_handler.gemini_handler import GeminiHandler # 레이블 생성용
+
 
 
 ANALYZER_EXECUTABLE = "./SwiftASTAnalyzer/.build/release/SwiftASTAnalyzer"
 PATTERNS_FILE = "./patterns.json"
 OUTPUT_DIR = Path("./output")
-FINAL_DATASET_PATH = OUTPUT_DIR / "alpaca_dataset.jsonl"
+FINAL_DATASET_PATH = OUTPUT_DIR / "json_dataset_by_gemini.jsonl"
 GENERATED_CODE_DIR = OUTPUT_DIR / "generated_code"
 GENERATED_LABELS_DIR = OUTPUT_DIR / "outputs"
 GENERATION_PROMPTS_DIR = OUTPUT_DIR / "inputs"
@@ -204,7 +206,7 @@ def create_alpaca_input(swift_code: str, symbol_info_json: str) -> str:
 
 
 def safe_claude_request(prompt: str, max_retries: int = 3) -> str:
-    """Claude API 요청을 안전하게 처리합니다."""
+    """Claude API 요청을 안전하게 처리합니다 (코드 생성용)."""
     for attempt in range(max_retries):
         try:
             response = ClaudeHandler.ask(prompt)
@@ -212,6 +214,29 @@ def safe_claude_request(prompt: str, max_retries: int = 3) -> str:
                 return response.strip()
         except Exception as e:
             print(f"  ⚠️ Claude request attempt {attempt + 1} failed: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+    return ""
+
+
+def safe_gemini_request(prompt: str, max_retries: int = 3) -> str:
+    """Gemini API 요청을 안전하게 처리합니다 (레이블 생성용)."""
+    for attempt in range(max_retries):
+        try:
+            # Gemini 핸들러에 맞는 형식으로 변경
+            prompt_config = {
+                "messages": [
+                    {
+                        "role": "user",
+                        "parts": [prompt]
+                    }
+                ]
+            }
+            response = GeminiHandler.ask(prompt_config, model_name="gemini-2.5-pro")
+            if response and response.strip():
+                return response.strip()
+        except Exception as e:
+            print(f"  ⚠️ Gemini request attempt {attempt + 1} failed: {e}")
             if attempt < max_retries - 1:
                 time.sleep(2 ** attempt)
     return ""
@@ -263,7 +288,7 @@ def process_single_task(task: dict) -> list[dict]:
             except Exception as e:
                 print(f"  ⚠️ Error reading existing files for {base_filename}: {e}")
 
-        # 1. 코드 생성
+        # 1. 코드 생성 (Claude 사용)
         try:
             prompt = ""
             if task_type.startswith('Pure_nC1'):
@@ -302,7 +327,7 @@ def process_single_task(task: dict) -> list[dict]:
             print(f"  ❌ AST analysis error for {base_filename}: {e}")
             continue
 
-        # 3. 레이블 및 reasoning 생성/지정
+        # 3. 레이블 및 reasoning 생성/지정 (Gemini 사용)
         json_output_str = ""
         label_prompt_for_file = ""
 
@@ -352,11 +377,11 @@ Example for secure code:
 
 Your response must be ONLY the JSON object, following these rules exactly."""
 
-                # 재시도 로직
+                # 재시도 로직 (Gemini 사용)
                 success = False
                 for attempt in range(3):
                     try:
-                        raw_response = safe_claude_request(label_prompt_for_file)
+                        raw_response = safe_gemini_request(label_prompt_for_file)
                         if not raw_response:
                             print(f"  ⚠️ Empty response for {base_filename}, attempt {attempt + 1}")
                             continue
@@ -476,8 +501,10 @@ def generate_tasks(patterns_by_category: dict) -> list[dict]:
 
 # --- 3. 메인 파이프라인 (Main Pipeline) ---
 def main_pipeline():
-    """최종 데이터셋 생성 파이프라인"""
-    print("🚀 Starting Alpaca dataset generation pipeline...")
+    """최종 데이터셋 생성 파이프라인 (Claude: 코드 생성, Gemini: 레이블 생성)"""
+    print("🚀 Starting Alpaca dataset generation pipeline (Claude + Gemini)...")
+    print("  📝 Claude: Code generation")
+    print("  🏷️  Gemini: Label generation")
 
     GENERATED_CODE_DIR.mkdir(parents=True, exist_ok=True)
     GENERATED_LABELS_DIR.mkdir(parents=True, exist_ok=True)
