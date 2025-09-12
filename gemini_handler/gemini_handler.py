@@ -89,7 +89,7 @@ class GeminiHandler:
                 # user_messages만 generate_content에 전달.
                 resp = model.generate_content(
                     user_messages,
-                    request_options={"timeout": 120}
+                    request_options={"timeout": 300}
                 )
 
                 if not resp.candidates:
@@ -109,13 +109,15 @@ class GeminiHandler:
                 return text.strip()
 
             except exceptions.ResourceExhausted as e:
-                print(f"  ⚠️ Gemini API 키 #{cls.current_key_index + 1}의 사용량 한도 도달. 키 전환 시도...")
-                cls.current_key_index += 1
-                if cls.current_key_index < len(cls.api_keys):
-                    last_err = e
-                    continue
-                else:
-                    raise RuntimeError(f"모든 Gemini API 키의 사용량 한도에 도달했습니다. 마지막 오류: {e}")
+                # === MODIFIED SECTION START ===
+                # 사용량 한도 초과 시, 키를 바꾸는 대신 61초간 대기하여 한도가 초기화되기를 기다립니다.
+                wait_time = 300
+                print(f"  ⚠️ Gemini API 키 #{cls.current_key_index + 1}의 사용량 한도 도달. {wait_time}초 후 같은 키로 재시도합니다... ({attempt}/{retries})")
+                time.sleep(wait_time)
+                last_err = e
+                # 다음 재시도를 위해 루프의 다음 단계로 넘어갑니다.
+                continue
+                # === MODIFIED SECTION END ===
 
             except (GeminiResponseEmptyError, GeminiBlockedError) as e:
                 wait = base_wait * (2 ** (attempt - 1))
@@ -144,4 +146,3 @@ class GeminiHandler:
         p.parent.mkdir(parents=True, exist_ok=True)
         with open(p, 'w', encoding='utf-8') as f:
             f.write(content)
-

@@ -13,18 +13,25 @@ from prompts import (
     GENERATE_SECURE_SINGLE_CODE_PROMPT, GENERATE_SECURE_COMBINED_CODE_PROMPT,
     GENERATE_MIXED_CONTEXT_CODE_PROMPT, GENERATE_SECURE_MIXED_CONTEXT_CODE_PROMPT
 )
-from claude_handler.claude_handler import ClaudeHandler # 코드 생성용
-from gemini_handler.gemini_handler import GeminiHandler # 레이블 생성용
-
-
+from claude_handler.claude_handler import ClaudeHandler  # 코드 생성용
+from gemini_handler.gemini_handler import GeminiHandler  # 코드 생성 + 레이블 생성용
 
 ANALYZER_EXECUTABLE = "./SwiftASTAnalyzer/.build/release/SwiftASTAnalyzer"
 PATTERNS_FILE = "./patterns.json"
 OUTPUT_DIR = Path("./output")
-FINAL_DATASET_PATH = OUTPUT_DIR / "json_dataset_by_gemini.jsonl"
-GENERATED_CODE_DIR = OUTPUT_DIR / "generated_code"
-GENERATED_LABELS_DIR = OUTPUT_DIR / "outputs"
-GENERATION_PROMPTS_DIR = OUTPUT_DIR / "inputs"
+
+# 각 생성기별 디렉토리 구조
+GENERATED_CODE_CLAUDE = OUTPUT_DIR / "generated_code" / "claude_generated"
+GENERATED_CODE_GEMINI = OUTPUT_DIR / "generated_code" / "gemini_generated"
+GENERATED_LABELS_CLAUDE = OUTPUT_DIR / "outputs" / "claude_generated"
+GENERATED_LABELS_GEMINI = OUTPUT_DIR / "outputs" / "gemini_generated"
+GENERATION_PROMPTS_CLAUDE = OUTPUT_DIR / "inputs" / "claude_generated"
+GENERATION_PROMPTS_GEMINI = OUTPUT_DIR / "inputs" / "gemini_generated"
+
+# 최종 데이터셋 파일들
+FINAL_DATASET_CLAUDE_ONLY = OUTPUT_DIR / "claude_only_dataset.jsonl"
+FINAL_DATASET_GEMINI_ONLY = OUTPUT_DIR / "gemini_only_dataset.jsonl"
+FINAL_DATASET_COMBINED = OUTPUT_DIR / "combined_dataset.jsonl"
 
 
 # --- 2. 헬퍼 함수 (Helper Functions) ---
@@ -219,11 +226,10 @@ def safe_claude_request(prompt: str, max_retries: int = 3) -> str:
     return ""
 
 
-def safe_gemini_request(prompt: str, max_retries: int = 3) -> str:
-    """Gemini API 요청을 안전하게 처리합니다 (레이블 생성용)."""
+def safe_gemini_code_request(prompt: str, max_retries: int = 3) -> str:
+    """Gemini API 요청을 안전하게 처리합니다 (코드 생성용)."""
     for attempt in range(max_retries):
         try:
-            # Gemini 핸들러에 맞는 형식으로 변경
             prompt_config = {
                 "messages": [
                     {
@@ -236,19 +242,53 @@ def safe_gemini_request(prompt: str, max_retries: int = 3) -> str:
             if response and response.strip():
                 return response.strip()
         except Exception as e:
-            print(f"  ⚠️ Gemini request attempt {attempt + 1} failed: {e}")
+            print(f"  ⚠️ Gemini code request attempt {attempt + 1} failed: {e}")
             if attempt < max_retries - 1:
                 time.sleep(2 ** attempt)
     return ""
 
 
-def process_single_task(task: dict) -> list[dict]:
-    """하나의 태스크에 대해 Positive/Negative 샘플 쌍을 생성하고 Alpaca 형식 엔트리를 반환합니다."""
+def safe_gemini_label_request(prompt: str, max_retries: int = 3) -> str:
+    """Gemini API 요청을 안전하게 처리합니다 (레이블 생성용)."""
+    for attempt in range(max_retries):
+        try:
+            prompt_config = {
+                "messages": [
+                    {
+                        "role": "user",
+                        "parts": [prompt]
+                    }
+                ]
+            }
+            response = GeminiHandler.ask(prompt_config, model_name="gemini-2.5-pro")
+            if response and response.strip():
+                return response.strip()
+        except Exception as e:
+            print(f"  ⚠️ Gemini label request attempt {attempt + 1} failed: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+    return ""
+
+
+def process_single_task_for_generator(task: dict, generator_type: str) -> list[dict]:
+    """하나의 태스크에 대해 특정 생성기로 Positive/Negative 샘플 쌍을 생성합니다."""
     final_entries = []
     task_type = task['type']
     patterns = task['patterns']
 
-    print(f"  🔄 Processing task: {task['filename']}")
+    print(f"  🔄 Processing task: {task['filename']} with {generator_type}")
+
+    # 생성기별 경로 설정
+    if generator_type == "claude":
+        code_dir = GENERATED_CODE_CLAUDE
+        label_dir = GENERATED_LABELS_CLAUDE
+        prompt_dir = GENERATION_PROMPTS_CLAUDE
+        code_request_func = safe_claude_request
+    else:  # gemini
+        code_dir = GENERATED_CODE_GEMINI
+        label_dir = GENERATED_LABELS_GEMINI
+        prompt_dir = GENERATION_PROMPTS_GEMINI
+        code_request_func = safe_gemini_code_request
 
     samples_to_generate = [
         {"is_negative": False, "suffix": "positive"},
@@ -260,62 +300,75 @@ def process_single_task(task: dict) -> list[dict]:
         suffix = sample_info['suffix']
         base_filename = f"{task['filename']}_{suffix}"
 
-        code_path = GENERATED_CODE_DIR / f"{base_filename}.swift"
-        label_path = GENERATED_LABELS_DIR / f"{base_filename}.json"
-        prompt_path = GENERATION_PROMPTS_DIR / f"{base_filename}.txt"
+        code_path = code_dir / f"{base_filename}.swift"
+        label_path = label_dir / f"{base_filename}.json"
+        prompt_path = prompt_dir / f"{base_filename}.txt"
 
-        # 이어하기 로직
+        # --- 이어하기 로직 (수정됨) ---
+
+        # 1. 완벽하게 완료된 경우: .swift와 .json 파일이 모두 존재하고 유효하면 건너뜀
         if code_path.exists() and label_path.exists():
             try:
                 swift_code = code_path.read_text(encoding='utf-8')
                 json_output_str = label_path.read_text(encoding='utf-8')
-
-                # 기존 파일이 유효한지 확인
                 if swift_code.strip() and json_output_str.strip():
-                    # JSON 유효성 확인
-                    try:
-                        json.loads(json_output_str)
-                        symbol_info = run_swift_analyzer_on_code(swift_code)
-                        if symbol_info:
-                            final_entries.append({
-                                "instruction": "In the following Swift code, find all identifiers related to sensitive logic. Provide the names and reasoning as a JSON object.",
-                                "input": create_alpaca_input(swift_code, symbol_info),
-                                "output": json_output_str
-                            })
-                            continue
-                    except json.JSONDecodeError:
-                        pass
+                    json.loads(json_output_str)  # JSON 유효성 검사
+                    symbol_info = run_swift_analyzer_on_code(swift_code)
+                    if symbol_info:
+                        final_entries.append({
+                            "instruction": "In the following Swift code, find all identifiers related to sensitive logic. Provide the names and reasoning as a JSON object.",
+                            "input": create_alpaca_input(swift_code, symbol_info),
+                            "output": json_output_str
+                        })
+                        continue  # 이 샘플은 완전히 완료되었으므로 다음 샘플로 넘어감
+            except (json.JSONDecodeError, FileNotFoundError, Exception) as e:
+                print(f"  ⚠️ Error with existing files for {base_filename}, will regenerate. Error: {e}")
+
+        # --- 코드 준비 단계 ---
+        generated_code = None
+
+        # 2. 코드만 존재하는 경우: .swift 파일을 읽어서 사용하고 코드 생성 단계를 건너뜀
+        if code_path.exists():
+            print(f"  ➡️ Code file found for {base_filename}. Reusing it.")
+            try:
+                generated_code = code_path.read_text(encoding='utf-8').strip()
+                if not generated_code:
+                    print(f"  ⚠️ Existing code file for {base_filename} is empty. Will regenerate.")
             except Exception as e:
-                print(f"  ⚠️ Error reading existing files for {base_filename}: {e}")
+                print(f"  ⚠️ Could not read existing code file {code_path}: {e}. Will regenerate.")
+                generated_code = None  # 읽기 실패 시 재생성하도록 초기화
 
-        # 1. 코드 생성 (Claude 사용)
-        try:
-            prompt = ""
-            if task_type.startswith('Pure_nC1'):
-                prompt_template = GENERATE_SECURE_SINGLE_CODE_PROMPT if is_negative else GENERATE_SINGLE_CODE_PROMPT
-                prompt = prompt_template.format(pattern=patterns[0]['text'])
-            elif task_type.startswith('Pure_nC2'):
-                prompt_template = GENERATE_SECURE_COMBINED_CODE_PROMPT if is_negative else GENERATE_COMBINED_CODE_PROMPT
-                prompt = prompt_template.format(pattern1=patterns[0]['text'], pattern2=patterns[1]['text'])
-            elif task_type.startswith('Mixed'):
-                prompt_template = GENERATE_SECURE_MIXED_CONTEXT_CODE_PROMPT if is_negative else GENERATE_MIXED_CONTEXT_CODE_PROMPT
-                prompt = prompt_template.format(sensitive_pattern=patterns[0]['text'],
-                                                nonsensitive_pattern=patterns[1]['text'])
+        # 3. 코드가 존재하지 않거나 비어있는 경우: API를 호출하여 코드 생성 (기존 로직)
+        if not generated_code:
+            print(f"  ✨ Generating new code for {base_filename}...")
+            try:
+                prompt = ""
+                if task_type.startswith('Pure_nC1'):
+                    prompt_template = GENERATE_SECURE_SINGLE_CODE_PROMPT if is_negative else GENERATE_SINGLE_CODE_PROMPT
+                    prompt = prompt_template.format(pattern=patterns[0]['text'])
+                elif task_type.startswith('Pure_nC2'):
+                    prompt_template = GENERATE_SECURE_COMBINED_CODE_PROMPT if is_negative else GENERATE_COMBINED_CODE_PROMPT
+                    prompt = prompt_template.format(pattern1=patterns[0]['text'], pattern2=patterns[1]['text'])
+                elif task_type.startswith('Mixed'):
+                    prompt_template = GENERATE_SECURE_MIXED_CONTEXT_CODE_PROMPT if is_negative else GENERATE_MIXED_CONTEXT_CODE_PROMPT
+                    prompt = prompt_template.format(sensitive_pattern=patterns[0]['text'],
+                                                    nonsensitive_pattern=patterns[1]['text'])
 
-            generated_code = safe_claude_request(prompt)
-            if not generated_code:
-                print(f"  ❌ Code generation failed for {base_filename}")
+                api_response = code_request_func(prompt)
+                if not api_response:
+                    print(f"  ❌ Code generation API call failed for {base_filename}")
+                    continue
+
+                generated_code = api_response.removeprefix("```swift").removesuffix("```").strip()
+                if not generated_code:
+                    print(f"  ❌ Empty code after processing for {base_filename}")
+                    continue
+
+            except Exception as e:
+                print(f"  ❌ Code generation error for {base_filename}: {e}")
                 continue
 
-            # Swift 코드 블록 마커 제거
-            generated_code = generated_code.removeprefix("```swift").removesuffix("```").strip()
-            if not generated_code:
-                print(f"  ❌ Empty code after processing for {base_filename}")
-                continue
-
-        except Exception as e:
-            print(f"  ❌ Code generation error for {base_filename}: {e}")
-            continue
+        # --- 이하 로직은 기존과 거의 동일 (generated_code 변수를 사용) ---
 
         # 2. AST 분석
         try:
@@ -327,7 +380,7 @@ def process_single_task(task: dict) -> list[dict]:
             print(f"  ❌ AST analysis error for {base_filename}: {e}")
             continue
 
-        # 3. 레이블 및 reasoning 생성/지정 (Gemini 사용)
+        # 3. 레이블 및 reasoning 생성 (모두 Gemini 사용)
         json_output_str = ""
         label_prompt_for_file = ""
 
@@ -381,7 +434,7 @@ Your response must be ONLY the JSON object, following these rules exactly."""
                 success = False
                 for attempt in range(3):
                     try:
-                        raw_response = safe_gemini_request(label_prompt_for_file)
+                        raw_response = safe_gemini_label_request(label_prompt_for_file)
                         if not raw_response:
                             print(f"  ⚠️ Empty response for {base_filename}, attempt {attempt + 1}")
                             continue
@@ -439,6 +492,11 @@ Your response must be ONLY the JSON object, following these rules exactly."""
 
         # 4. 중간 파일 저장 및 Alpaca 엔트리 생성
         try:
+            # 디렉토리 생성
+            code_path.parent.mkdir(parents=True, exist_ok=True)
+            label_path.parent.mkdir(parents=True, exist_ok=True)
+            prompt_path.parent.mkdir(parents=True, exist_ok=True)
+
             prompt_path.write_text(label_prompt_for_file, encoding='utf-8')
             code_path.write_text(generated_code, encoding='utf-8')
             label_path.write_text(json_output_str, encoding='utf-8')
@@ -455,7 +513,7 @@ Your response must be ONLY the JSON object, following these rules exactly."""
             print(f"  ❌ File saving error for {base_filename}: {e}")
             continue
 
-    print(f"  ✅ Task {task['filename']} completed: {len(final_entries)} entries")
+    print(f"  ✅ Task {task['filename']} with {generator_type} completed: {len(final_entries)} entries")
     return final_entries
 
 
@@ -501,14 +559,17 @@ def generate_tasks(patterns_by_category: dict) -> list[dict]:
 
 # --- 3. 메인 파이프라인 (Main Pipeline) ---
 def main_pipeline():
-    """최종 데이터셋 생성 파이프라인 (Claude: 코드 생성, Gemini: 레이블 생성)"""
-    print("🚀 Starting Alpaca dataset generation pipeline (Claude + Gemini)...")
+    """최종 데이터셋 생성 파이프라인 (Claude + Gemini 코드 생성, Gemini 레이블 생성)"""
+    print("🚀 Starting Alpaca dataset generation pipeline...")
     print("  📝 Claude: Code generation")
-    print("  🏷️  Gemini: Label generation")
+    print("  📝 Gemini: Code generation")
+    print("  🏷️  Gemini: Label generation (for both)")
 
-    GENERATED_CODE_DIR.mkdir(parents=True, exist_ok=True)
-    GENERATED_LABELS_DIR.mkdir(parents=True, exist_ok=True)
-    GENERATION_PROMPTS_DIR.mkdir(parents=True, exist_ok=True)
+    # 모든 디렉토리 생성
+    for dir_path in [GENERATED_CODE_CLAUDE, GENERATED_CODE_GEMINI,
+                     GENERATED_LABELS_CLAUDE, GENERATED_LABELS_GEMINI,
+                     GENERATION_PROMPTS_CLAUDE, GENERATION_PROMPTS_GEMINI]:
+        dir_path.mkdir(parents=True, exist_ok=True)
 
     # 패턴 로드
     try:
@@ -519,28 +580,61 @@ def main_pipeline():
         return
 
     tasks = generate_tasks(patterns_by_category)
-    final_dataset = []
 
-    for i, task in enumerate(tqdm(tasks, desc="Processing all tasks")):
+    claude_dataset = []
+    gemini_dataset = []
+    combined_dataset = []
+
+    # Claude 생성기로 처리
+    print("\n🔵 Processing with Claude code generator...")
+    for i, task in enumerate(tqdm(tasks, desc="Processing tasks with Claude")):
         try:
-            entries = process_single_task(task)
+            entries = process_single_task_for_generator(task, "claude")
             if entries:
-                final_dataset.extend(entries)
+                claude_dataset.extend(entries)
+                combined_dataset.extend(entries)
         except Exception as exc:
-            print(f"  ❌ Task {task['filename']} generated an exception: {exc}")
+            print(f"  ❌ Claude task {task['filename']} generated an exception: {exc}")
             import traceback
             traceback.print_exc()
 
-    # 최종 데이터셋 파일 저장
+    # Gemini 생성기로 처리
+    print("\n🟡 Processing with Gemini code generator...")
+    for i, task in enumerate(tqdm(tasks, desc="Processing tasks with Gemini")):
+        try:
+            entries = process_single_task_for_generator(task, "gemini")
+            if entries:
+                gemini_dataset.extend(entries)
+                combined_dataset.extend(entries)
+        except Exception as exc:
+            print(f"  ❌ Gemini task {task['filename']} generated an exception: {exc}")
+            import traceback
+            traceback.print_exc()
+
+    # 최종 데이터셋 파일들 저장
     try:
-        with open(FINAL_DATASET_PATH, "w", encoding="utf-8") as f:
-            for entry in final_dataset:
+        # Claude only dataset
+        with open(FINAL_DATASET_CLAUDE_ONLY, "w", encoding="utf-8") as f:
+            for entry in claude_dataset:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-        print(f"\n✅ Pipeline finished. Total {len(final_dataset)} entries processed and saved to {FINAL_DATASET_PATH}")
+        # Gemini only dataset
+        with open(FINAL_DATASET_GEMINI_ONLY, "w", encoding="utf-8") as f:
+            for entry in gemini_dataset:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+        # Combined dataset
+        with open(FINAL_DATASET_COMBINED, "w", encoding="utf-8") as f:
+            for entry in combined_dataset:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+        print(f"\n✅ Pipeline finished!")
+        print(f"📊 Claude dataset: {len(claude_dataset)} entries -> {FINAL_DATASET_CLAUDE_ONLY}")
+        print(f"📊 Gemini dataset: {len(gemini_dataset)} entries -> {FINAL_DATASET_GEMINI_ONLY}")
+        print(f"📊 Combined dataset: {len(combined_dataset)} entries -> {FINAL_DATASET_COMBINED}")
 
     except Exception as e:
-        print(f"❌ Failed to save final dataset: {e}")
+        print(f"❌ Failed to save final datasets: {e}")
 
 
 if __name__ == "__main__":
