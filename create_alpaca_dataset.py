@@ -304,7 +304,7 @@ def process_single_task_for_generator(task: dict, generator_type: str) -> list[d
         label_path = label_dir / f"{base_filename}.json"
         prompt_path = prompt_dir / f"{base_filename}.txt"
 
-        # --- 이어하기 로직 (수정됨) ---
+        # --- 이어하기 로직 ---
 
         # 1. 완벽하게 완료된 경우: .swift와 .json 파일이 모두 존재하고 유효하면 건너뜀
         if code_path.exists() and label_path.exists():
@@ -315,6 +315,7 @@ def process_single_task_for_generator(task: dict, generator_type: str) -> list[d
                     json.loads(json_output_str)  # JSON 유효성 검사
                     symbol_info = run_swift_analyzer_on_code(swift_code)
                     if symbol_info:
+                        print(f"  ➡️ Using existing files for {base_filename}")
                         final_entries.append({
                             "instruction": "In the following Swift code, find all identifiers related to sensitive logic. Provide the names and reasoning as a JSON object.",
                             "input": create_alpaca_input(swift_code, symbol_info),
@@ -338,7 +339,7 @@ def process_single_task_for_generator(task: dict, generator_type: str) -> list[d
                 print(f"  ⚠️ Could not read existing code file {code_path}: {e}. Will regenerate.")
                 generated_code = None  # 읽기 실패 시 재생성하도록 초기화
 
-        # 3. 코드가 존재하지 않거나 비어있는 경우: API를 호출하여 코드 생성 (기존 로직)
+        # 3. 코드가 존재하지 않거나 비어있는 경우: API를 호출하여 코드 생성
         if not generated_code:
             print(f"  ✨ Generating new code for {base_filename}...")
             try:
@@ -368,9 +369,7 @@ def process_single_task_for_generator(task: dict, generator_type: str) -> list[d
                 print(f"  ❌ Code generation error for {base_filename}: {e}")
                 continue
 
-        # --- 이하 로직은 기존과 거의 동일 (generated_code 변수를 사용) ---
-
-        # 2. AST 분석
+        # --- AST 분석 단계 ---
         try:
             symbol_info_json = run_swift_analyzer_on_code(generated_code)
             if not symbol_info_json:
@@ -380,19 +379,13 @@ def process_single_task_for_generator(task: dict, generator_type: str) -> list[d
             print(f"  ❌ AST analysis error for {base_filename}: {e}")
             continue
 
-        # 3. 레이블 및 reasoning 생성 (모두 Gemini 사용)
+        # --- 레이블 생성 단계 (모든 샘플에 대해 동일하게 처리) ---
         json_output_str = ""
         label_prompt_for_file = ""
 
         try:
-            if is_negative:
-                pattern_texts = " and ".join([p['text'] for p in patterns])
-                reasoning_text = f"This code correctly and securely implements the requested functionality related to '{pattern_texts}'. It follows security best practices. Therefore, no sensitive identifiers were found."
-                output_json_obj = {"reasoning": reasoning_text, "identifiers": []}
-                json_output_str = json.dumps(output_json_obj, ensure_ascii=False, indent=2)
-                label_prompt_for_file = "N/A for negative sample"
-            else:
-                label_prompt_for_file = f"""You are an expert security code auditor.
+            # 모든 샘플에 대해 동일한 프롬프트 템플릿 사용
+            label_prompt_for_file = f"""You are an expert security code auditor.
 Your task is to identify all sensitive identifiers in the provided Swift code and explain your reasoning.
 Analyze both the source code and its corresponding AST symbol information.
 
@@ -430,77 +423,78 @@ Example for secure code:
 
 Your response must be ONLY the JSON object, following these rules exactly."""
 
-                # 재시도 로직 (Gemini 사용)
-                success = False
-                for attempt in range(3):
-                    try:
-                        raw_response = safe_gemini_label_request(label_prompt_for_file)
-                        if not raw_response:
-                            print(f"  ⚠️ Empty response for {base_filename}, attempt {attempt + 1}")
+            # API 호출로 레이블 생성 (재시도 로직 포함)
+            success = False
+            for attempt in range(3):
+                try:
+                    raw_response = safe_gemini_label_request(label_prompt_for_file)
+                    if not raw_response:
+                        print(f"  ⚠️ Empty response for {base_filename}, attempt {attempt + 1}")
+                        continue
+
+                    print(f"  🔍 Raw response length for {base_filename}: {len(raw_response)} chars")
+
+                    # 여러 방법으로 JSON 추출 시도
+                    json_candidates = []
+
+                    # 방법 1: 기존 extract_json_block
+                    extracted_json = extract_json_block(raw_response)
+                    if extracted_json:
+                        json_candidates.append(extracted_json)
+
+                    # 방법 2: 간단한 중괄호 찾기
+                    start = raw_response.find('{')
+                    end = raw_response.rfind('}')
+                    if start != -1 and end != -1 and end > start:
+                        simple_json = raw_response[start:end + 1]
+                        if simple_json not in json_candidates:
+                            json_candidates.append(simple_json)
+
+                    # 각 후보에 대해 검증
+                    for candidate in json_candidates:
+                        try:
+                            output_data = json.loads(candidate)
+                            if isinstance(output_data, dict) and "reasoning" in output_data and "identifiers" in output_data:
+                                json_output_str = json.dumps(output_data, ensure_ascii=False, indent=2)
+                                success = True
+                                print(f"  ✅ JSON successfully parsed for {base_filename}")
+                                break
+                        except json.JSONDecodeError as e:
+                            print(f"  ⚠️ JSON candidate failed for {base_filename}: {e}")
                             continue
 
-                        print(f"  🔍 Raw response length for {base_filename}: {len(raw_response)} chars")
-
-                        # 여러 방법으로 JSON 추출 시도
-                        json_candidates = []
-
-                        # 방법 1: 기존 extract_json_block
-                        extracted_json = extract_json_block(raw_response)
-                        if extracted_json:
-                            json_candidates.append(extracted_json)
-
-                        # 방법 2: 간단한 중괄호 찾기
-                        start = raw_response.find('{')
-                        end = raw_response.rfind('}')
-                        if start != -1 and end != -1 and end > start:
-                            simple_json = raw_response[start:end + 1]
-                            if simple_json not in json_candidates:
-                                json_candidates.append(simple_json)
-
-                        # 각 후보에 대해 검증
-                        for candidate in json_candidates:
-                            try:
-                                output_data = json.loads(candidate)
-                                if isinstance(output_data,
-                                              dict) and "reasoning" in output_data and "identifiers" in output_data:
-                                    json_output_str = json.dumps(output_data, ensure_ascii=False, indent=2)
-                                    success = True
-                                    print(f"  ✅ JSON successfully parsed for {base_filename}")
-                                    break
-                            except json.JSONDecodeError as e:
-                                print(f"  ⚠️ JSON candidate failed for {base_filename}: {e}")
-                                continue
-
-                        if success:
-                            break
-                        else:
-                            print(f"  ❌ All JSON candidates failed for {base_filename}, attempt {attempt + 1}")
-                            print(f"  📄 Response preview: {raw_response[:200]}...")
-                            time.sleep(2)
-
-                    except Exception as e:
-                        print(f"  ⚠️ Unexpected error for {base_filename}, attempt {attempt + 1}: {e}")
+                    if success:
+                        break
+                    else:
+                        print(f"  ❌ All JSON candidates failed for {base_filename}, attempt {attempt + 1}")
+                        print(f"  📄 Response preview: {raw_response[:200]}...")
                         time.sleep(2)
 
-                if not success:
-                    print(f"  ❌ Label generation failed for {base_filename} after 3 attempts. Skipping.")
-                    continue
+                except Exception as e:
+                    print(f"  ⚠️ Unexpected error for {base_filename}, attempt {attempt + 1}: {e}")
+                    time.sleep(2)
+
+            if not success:
+                print(f"  ❌ Label generation failed for {base_filename} after 3 attempts. Skipping.")
+                continue
 
         except Exception as e:
             print(f"  ❌ Label generation error for {base_filename}: {e}")
             continue
 
-        # 4. 중간 파일 저장 및 Alpaca 엔트리 생성
+        # --- 파일 저장 및 최종 엔트리 생성 ---
         try:
             # 디렉토리 생성
             code_path.parent.mkdir(parents=True, exist_ok=True)
             label_path.parent.mkdir(parents=True, exist_ok=True)
             prompt_path.parent.mkdir(parents=True, exist_ok=True)
 
+            # 파일 저장
             prompt_path.write_text(label_prompt_for_file, encoding='utf-8')
             code_path.write_text(generated_code, encoding='utf-8')
             label_path.write_text(json_output_str, encoding='utf-8')
 
+            # Alpaca 포맷 엔트리 생성
             alpaca_input = create_alpaca_input(generated_code, symbol_info_json)
 
             final_entries.append({
